@@ -2,23 +2,25 @@
 Wiki Downloader
 ===============
 
-Authors:
-- Pepe
-- AI: Swisscom myAI (powered by Anthropic Claude)
+AUTHOR:
+Pepe HB9EVT
+   (Github: @pepe-hb9evt)
+with support of  the following A.I.:
+"myAI" by Swisscom, powered by Anthropic Claude.
 
-Purpose:
+PURPOSE:
 Creates a PDF copy of every page on a MediaWiki site,
 and downloads all images (only those images which are
 used on the pages)
 
-Procedure:
+PROCEDURE:
 In the first step, the script generates all the PDFs.
 At the same time, a list of all images is created.
 This allows the script to detect whether an image has been
 used multiple times on different pages.
 In the second step, all images are downloaded.
 
-Preparation:
+PREPARATION:
 Please check in the lines below which additional python packages
 and which external app (!) is needed.
 """
@@ -74,6 +76,16 @@ pdf_options = {
     "quiet":              "",
 }
 
+# ──────────────────────────────────────────────
+# COUNTERS
+# ──────────────────────────────────────────────
+counter_pdfs_saved    = 0   # Number of PDFs successfully saved
+counter_pdfs_skipped  = 0   # Number of PDFs skipped (already existed)
+counter_pdfs_failed   = 0   # Number of PDFs that failed
+counter_imgs_saved    = 0   # Number of images successfully saved
+counter_imgs_skipped  = 0   # Number of images skipped (already existed)
+counter_imgs_failed   = 0   # Number of images that failed
+
 
 # ──────────────────────────────────────────────
 # HELPER FUNCTIONS
@@ -122,12 +134,15 @@ def get_all_page_links() -> list[tuple[str, str]]:
 
 def download_pdf(title: str, url: str) -> None:
     """Saves a wiki page as a PDF file."""
+    global counter_pdfs_saved, counter_pdfs_skipped, counter_pdfs_failed
+
     filename = safe_filename(title, "pdf")
     filepath = os.path.join(OUTPUT_PDF_DIR, filename)
 
     # Skip if file already exists
     if os.path.exists(filepath):
         print(f"   ⏭️  PDF already exists, skipping: {filename}")
+        counter_pdfs_skipped += 1
         return
 
     try:
@@ -137,8 +152,10 @@ def download_pdf(title: str, url: str) -> None:
 
         pdfkit.from_url(url, filepath, **kwargs)
         print(f"   ✅ PDF saved: {filename}")
+        counter_pdfs_saved += 1
     except Exception as e:
         print(f"   ❌ PDF error ({title}): {e}")
+        counter_pdfs_failed += 1
 
 
 def get_image_urls_from_page(page_url: str) -> list[str]:
@@ -178,6 +195,8 @@ def get_image_urls_from_page(page_url: str) -> list[str]:
 
 def download_image(img_url: str) -> None:
     """Downloads an image and saves it locally."""
+    global counter_imgs_saved, counter_imgs_skipped, counter_imgs_failed
+
     filename = unquote(os.path.basename(urlparse(img_url).path))
     filename = re.sub(r'[\\/*?:"<>|]', "_", filename)
     filepath = os.path.join(OUTPUT_IMG_DIR, filename)
@@ -185,6 +204,7 @@ def download_image(img_url: str) -> None:
     # Skip if file already exists
     if os.path.exists(filepath):
         print(f"      ⏭️  Image already exists: {filename}")
+        counter_imgs_skipped += 1
         return
 
     try:
@@ -194,8 +214,10 @@ def download_image(img_url: str) -> None:
             for chunk in resp.iter_content(8192):
                 f.write(chunk)
         print(f"      🖼️  Image saved: {filename}")
+        counter_imgs_saved += 1
     except Exception as e:
         print(f"      ❌ Image error ({img_url}): {e}")
+        counter_imgs_failed += 1
 
 
 # ──────────────────────────────────────────────
@@ -234,10 +256,17 @@ def main():
         download_image(img_url)
         time.sleep(0.3)
 
+    # ── Final summary ──────────────────────────
     print("\n" + "=" * 55)
     print(f"  🎉 Done!")
     print(f"  📁 PDFs:   ./{OUTPUT_PDF_DIR}/")
+    print(f"     ✅ Saved:   {counter_pdfs_saved}")
+    print(f"     ⏭️  Skipped: {counter_pdfs_skipped}")
+    print(f"     ❌ Failed:  {counter_pdfs_failed}")
     print(f"  📁 Images: ./{OUTPUT_IMG_DIR}/")
+    print(f"     ✅ Saved:   {counter_imgs_saved}")
+    print(f"     ⏭️  Skipped: {counter_imgs_skipped}")
+    print(f"     ❌ Failed:  {counter_imgs_failed}")
     print("=" * 55)
 
 
