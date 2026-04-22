@@ -1,0 +1,20 @@
+# Ignore the contents of the output folders,
+# but keep the folders themselves tracked by Git
+wiki_pdfs/*
+wiki_images/*
+
+# Keep the folders in Git by tracking a hidden placeholder file
+!wiki_pdfs/.gitkeep
+!wiki_images/.gitkeep
+
+# Virtual environment
+.venv/
+
+
+# ?
+.idea
+
+
+# Windows
+Thumbs.db
+desktop.ini
