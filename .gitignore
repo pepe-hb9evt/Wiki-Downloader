@@ -1,11 +1,15 @@
 # Ignore the contents of the output folders,
 # but keep the folders themselves tracked by Git
-wiki_pdfs/*
-wiki_images/*
+output_markdown_pages/*
+output_pdf_pages/*
+output_images/*
+
 
 # Keep the folders in Git by tracking a hidden placeholder file
-!wiki_pdfs/.gitkeep
-!wiki_images/.gitkeep
+!output_markdown_pages/.gitkeep
+!output_pdf_pages/.gitkeep
+!output_images/.gitkeep
+
 
 # Virtual environment
 .venv/
@@ -18,3 +22,4 @@ wiki_images/*
 # Windows
 Thumbs.db
 desktop.ini
+
