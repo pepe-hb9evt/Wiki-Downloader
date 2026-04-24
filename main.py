@@ -1,0 +1,328 @@
+"""
+Wiki Downloader
+==============
+
+AUTHOR: Pepe HB9EVT (Github: @pepe-hb9evt)
+with support of the following A.I.: "myAI" by Swisscom, powered by Anthropic Claude.
+
+PURPOSE:
+Creates a PDF or Markdown copy of every page on a wiki site,
+and/or downloads all images (only those images which are used on the pages).
+
+SUPPORTED WIKI ENGINES:
+- MediaWiki (e.g. Wikipedia, jotawiki.scout.ch)
+- DokuWiki  (e.g. openwrt.org)
+
+In Markdown mode, images are replaced with a text placeholder showing the
+image filename and its dimensions (width x height in pixels).
+
+PROCEDURE:
+In the first step, the script generates all the PDFs or Markdown files.
+At the same time, a list of all images is created.
+This allows the script to detect whether an image has been used multiple times
+on different pages. In the second step, all images are downloaded.
+
+PREPARATION:
+    pip install requests beautifulsoup4
+    pip install pdfkit       (only for PDF output)
+    pip install html2text    (only for Markdown output)
+
+    For PDF output, wkhtmltopdf must also be installed:
+    - Windows: https://wkhtmltopdf.org/downloads.html
+    - macOS:   brew install wkhtmltopdf
+    - Linux:   sudo apt install wkhtmltopdf
+"""
+
+import os
+import time
+
+from config import (
+    state, counters,
+    OUTPUT_PDF_DIR, OUTPUT_MD_DIR, OUTPUT_IMG_DIR,
+    DELAY_SECONDS,
+)
+from helpers import abort_program, validate_url, clear_folder
+from detection import detect_wiki_type
+from mediawiki import get_all_page_links_mediawiki
+from dokuwiki import get_all_page_links_dokuwiki
+from download import (
+    download_pdf, download_markdown,
+    get_image_urls_from_page, download_image,
+)
+
+# Optional packages (checked during menu)
+try:
+    import pdfkit
+except ImportError:
+    pdfkit = None
+
+try:
+    import html2text
+except ImportError:
+    html2text = None
+
+
+# ──────────────────────────────────────────────
+# PAGE LISTING DISPATCHER
+# ──────────────────────────────────────────────
+
+def get_all_page_links() -> list[tuple[str, str]]:
+    """Dispatcher: calls the appropriate page listing method based on wiki type."""
+    if state.wiki_type == "mediawiki":
+        return get_all_page_links_mediawiki()
+    elif state.wiki_type == "dokuwiki":
+        return get_all_page_links_dokuwiki()
+    else:
+        print("[FAIL] Unknown wiki type. Cannot list pages.")
+        return []
+
+
+# ──────────────────────────────────────────────
+# INTERACTIVE MENU
+# ──────────────────────────────────────────────
+
+def show_menu() -> tuple[str, str]:
+    """
+    Interactive menu. Asks for wiki URL, validates it, auto-detects the engine,
+    then asks for download scope, page format, and whether to clear output folders.
+    Every question offers [9] Cancel to abort the program.
+    Returns (download_scope, page_format).
+    """
+    # --- Step 1: Ask for the wiki URL and validate it ---
+    print("\n[MENU] Enter the URL of the wiki you want to download.")
+    print("       Examples: http://jotawiki.scout.ch")
+    print("                 https://openwrt.org")
+    print("       Enter 9 to cancel.")
+
+    while True:
+        url_input = input("   Wiki URL: ").strip()
+
+        # Cancel
+        if url_input == "9":
+            abort_program()
+
+        # Skip empty input
+        if not url_input:
+            print("   [WARN] Please enter a valid URL.")
+            continue
+
+        # Basic cleanup: add scheme if missing
+        if not url_input.startswith("http"):
+            url_input = "https://" + url_input
+
+        # Remove trailing slash
+        url_input = url_input.rstrip("/")
+
+        # Validate: check that the URL returns a valid HTML page
+        print(f"[INFO] Checking URL: {url_input}")
+        is_valid, message = validate_url(url_input)
+
+        if is_valid:
+            print("[INFO] URL is valid.")
+            break
+        else:
+            print(f"   [FAIL] {message}")
+            print("   Please try again.\n")
+
+    state.base_url = url_input
+    print(f"[INFO] Target: {state.base_url}")
+
+    # --- Step 2: Auto-detect wiki engine ---
+    detected = detect_wiki_type(state.base_url)
+
+    if detected:
+        state.wiki_type = detected
+        print(f"[INFO] Wiki engine: {state.wiki_type}")
+    else:
+        # Auto-detection failed: ask the user
+        print("\n[WARN] Could not auto-detect the wiki engine.")
+        print("[MENU] Which wiki engine does this site use?")
+        print("   [1] MediaWiki")
+        print("   [2] DokuWiki")
+        print("   [9] Cancel")
+
+        while True:
+            choice = input("   Your choice (1/2/9): ").strip()
+            if choice == "9":
+                abort_program()
+            if choice in ("1", "2"):
+                break
+            print("   [WARN] Please enter 1, 2, or 9.")
+
+        state.wiki_type = "mediawiki" if choice == "1" else "dokuwiki"
+        print(f"[INFO] Wiki engine: {state.wiki_type}")
+
+    # --- Step 3: Download scope ---
+    print("\n[MENU] What would you like to download?")
+    print("   [1] Pages only")
+    print("   [2] Images only")
+    print("   [3] Both (pages and images)")
+    print("   [9] Cancel")
+
+    while True:
+        choice = input("   Your choice (1/2/3/9): ").strip()
+        if choice == "9":
+            abort_program()
+        if choice in ("1", "2", "3"):
+            break
+        print("   [WARN] Please enter 1, 2, 3, or 9.")
+
+    scope_map = {"1": "pages", "2": "images", "3": "both"}
+    download_scope = scope_map[choice]
+
+    # --- Step 4: Page format (only if downloading pages) ---
+    page_format = None
+    if download_scope in ("pages", "both"):
+        print("\n[MENU] In which format should pages be saved?")
+        print("   [1] PDF")
+        print("   [2] Markdown")
+        print("   [9] Cancel")
+
+        while True:
+            choice = input("   Your choice (1/2/9): ").strip()
+            if choice == "9":
+                abort_program()
+            if choice in ("1", "2"):
+                break
+            print("   [WARN] Please enter 1, 2, or 9.")
+
+        page_format = "pdf" if choice == "1" else "markdown"
+
+        # Verify that required packages are installed
+        if page_format == "pdf" and pdfkit is None:
+            print("\n   [FAIL] 'pdfkit' is not installed. Run: pip install pdfkit")
+            exit(1)
+        if page_format == "markdown" and html2text is None:
+            print("\n   [FAIL] 'html2text' is not installed. Run: pip install html2text")
+            exit(1)
+
+    # --- Step 5: Ask whether to clear the affected output folders ---
+    download_pages = download_scope in ("pages", "both")
+    download_images = download_scope in ("images", "both")
+
+    # Determine which folders are affected by this run
+    affected_folders = []
+    if download_pages and page_format == "pdf":
+        affected_folders.append(OUTPUT_PDF_DIR)
+    if download_pages and page_format == "markdown":
+        affected_folders.append(OUTPUT_MD_DIR)
+    if download_images:
+        affected_folders.append(OUTPUT_IMG_DIR)
+
+    # Only ask if at least one affected folder already contains files
+    folders_with_files = [
+        f for f in affected_folders
+        if os.path.isdir(f) and any(
+            os.path.isfile(os.path.join(f, name)) for name in os.listdir(f)
+        )
+    ]
+
+    if folders_with_files:
+        print(f"\n[MENU] The following output folder(s) already contain files:")
+        for f in folders_with_files:
+            file_count = sum(
+                1 for name in os.listdir(f)
+                if os.path.isfile(os.path.join(f, name))
+            )
+            print(f"         ./{f}/ ({file_count} file(s))")
+        print("       Should they be cleared before downloading?")
+        print("   [1] Yes, clear folder(s)")
+        print("   [2] No, keep existing files (duplicates will be skipped)")
+        print("   [9] Cancel")
+
+        while True:
+            choice = input("   Your choice (1/2/9): ").strip()
+            if choice == "9":
+                abort_program()
+            if choice in ("1", "2"):
+                break
+            print("   [WARN] Please enter 1, 2, or 9.")
+
+        if choice == "1":
+            print("[INFO] Clearing output folder(s)...")
+            for f in folders_with_files:
+                clear_folder(f)
+
+    print()
+    return download_scope, page_format
+
+
+# ──────────────────────────────────────────────
+# MAIN PROGRAM
+# ──────────────────────────────────────────────
+
+def main():
+    print("=" * 55)
+    print("  Wiki Downloader")
+    print("=" * 55)
+
+    download_scope, page_format = show_menu()
+    download_pages = download_scope in ("pages", "both")
+    download_images = download_scope in ("images", "both")
+
+    pages = get_all_page_links()
+
+    if not pages:
+        print("[FAIL] No pages found. Exiting.")
+        return
+
+    all_image_urls: set[str] = set()
+
+    for i, (title, url) in enumerate(pages, 1):
+        print(f"[{i}/{len(pages)}] {title}")
+        print(f"   [URL]  {url}")
+
+        # Step 1: Save page as PDF or Markdown (if requested)
+        if download_pages:
+            if page_format == "pdf":
+                download_pdf(title, url)
+            else:
+                download_markdown(title, url)
+
+        # Step 2: Collect all image URLs found on the page (if requested)
+        if download_images:
+            imgs = get_image_urls_from_page(url)
+            if imgs:
+                print(f"   [SCAN] {len(imgs)} image(s) found")
+            all_image_urls.update(imgs)
+
+        time.sleep(DELAY_SECONDS)
+
+    # Step 3: Download all collected images (if requested)
+    if download_images:
+        print("\n" + "=" * 55)
+        print(f"  Downloading {len(all_image_urls)} unique image(s)...")
+        print("=" * 55)
+
+        for img_url in sorted(all_image_urls):
+            download_image(img_url)
+            time.sleep(0.3)
+
+    # -- Final summary --
+    print("\n" + "=" * 55)
+    print("  Done!")
+    print(f"  Source: {state.base_url} ({state.wiki_type})")
+
+    if download_pages and page_format == "pdf":
+        print(f"  PDFs:     ./{OUTPUT_PDF_DIR}/")
+        print(f"    Saved:   {counters.pdfs_saved}")
+        print(f"    Skipped: {counters.pdfs_skipped}")
+        print(f"    Failed:  {counters.pdfs_failed}")
+
+    if download_pages and page_format == "markdown":
+        print(f"  Markdown: ./{OUTPUT_MD_DIR}/")
+        print(f"    Saved:   {counters.mds_saved}")
+        print(f"    Skipped: {counters.mds_skipped}")
+        print(f"    Failed:  {counters.mds_failed}")
+
+    if download_images:
+        print(f"  Images:   ./{OUTPUT_IMG_DIR}/")
+        print(f"    Saved:   {counters.imgs_saved}")
+        print(f"    Skipped: {counters.imgs_skipped}")
+        print(f"    Failed:  {counters.imgs_failed}")
+
+    print("=" * 55)
+
+
+if __name__ == "__main__":
+    main()
