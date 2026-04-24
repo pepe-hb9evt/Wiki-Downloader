@@ -1,11 +1,10 @@
 """
-config.py
+sub_config.py
 =========
 Global configuration, constants, session setup, and shared runtime state.
 """
 
 import os
-
 import requests
 
 # Optional packages (install depending on your chosen output format)
@@ -17,9 +16,10 @@ except ImportError:
 # ──────────────────────────────────────────────
 # CONSTANTS
 # ──────────────────────────────────────────────
-OUTPUT_PDF_DIR = "wiki_pdfs"
-OUTPUT_MD_DIR = "wiki_markdown"
-OUTPUT_IMG_DIR = "wiki_images"
+OUTPUT_PDF_DIR = "output_pdf_pages_pdfs"
+OUTPUT_MD_DIR  = "output_markdown_pages"
+OUTPUT_IMG_DIR = "output_images"
+LOG_FILE       = "log_wiki_downloader.txt"
 DELAY_SECONDS = 1.0
 
 # MediaWiki-specific: path to the "All pages" special page

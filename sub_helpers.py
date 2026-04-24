@@ -2,25 +2,62 @@
 helpers.py
 ==========
 General-purpose helper functions used across multiple modules.
+Provides the central print_n_log() function that writes to both terminal and log file.
 """
 
 import os
 import re
 import sys
+from datetime import datetime
 from struct import unpack
 from urllib.parse import urljoin, urlparse, unquote, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
 
-from config import session, state
+from sub_config import session, state, LOG_FILE
 
+
+# ──────────────────────────────────────────────
+# LOGGING
+# ──────────────────────────────────────────────
+
+def print_n_log(message: str = "") -> None:
+    """
+    Prints a message to the terminal and appends it to the log file.
+    The log file is never overwritten, new entries are always appended.
+    """
+    print(message)
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(message + "\n")
+    except Exception:
+        pass  # Never let logging errors break the program
+
+
+def log_session_header() -> None:
+    """Writes a session separator and timestamp to the log file."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    separator = "\n" + "=" * 55
+    header = f"  Session started: {timestamp}"
+    print_n_log(separator)
+    print_n_log(header)
+    print_n_log("=" * 55)
+
+
+# ──────────────────────────────────────────────
+# PROGRAM CONTROL
+# ──────────────────────────────────────────────
 
 def abort_program():
     """Exits the program gracefully after user chose to cancel."""
-    print("\n[INFO] Cancelled by user. Goodbye!")
+    print_n_log("\n[INFO] Cancelled by user. Goodbye!")
     sys.exit(0)
 
+
+# ──────────────────────────────────────────────
+# URL VALIDATION
+# ──────────────────────────────────────────────
 
 def validate_url(url: str) -> tuple[bool, str]:
     """
@@ -74,6 +111,10 @@ def validate_url(url: str) -> tuple[bool, str]:
     return True, "OK"
 
 
+# ──────────────────────────────────────────────
+# FILE AND FOLDER HELPERS
+# ──────────────────────────────────────────────
+
 def clear_folder(folder_path: str) -> None:
     """Deletes all files inside the given folder (not subfolders)."""
     count = 0
@@ -82,7 +123,7 @@ def clear_folder(folder_path: str) -> None:
         if os.path.isfile(filepath):
             os.remove(filepath)
             count += 1
-    print(f"   [OK]   {folder_path}/ cleared ({count} file(s) deleted)")
+    print_n_log(f"   [OK]   {folder_path}/ cleared ({count} file(s) deleted)")
 
 
 def safe_filename(name: str, ext: str) -> str:
@@ -94,6 +135,10 @@ def safe_filename(name: str, ext: str) -> str:
         name = name[:200]
     return f"{name}.{ext}"
 
+
+# ──────────────────────────────────────────────
+# IMAGE HELPERS
+# ──────────────────────────────────────────────
 
 def get_image_dimensions(img_tag, img_url: str) -> tuple:
     """

@@ -10,14 +10,14 @@ import re
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
-from config import (
+from sub_config import (
     session, state, counters,
     OUTPUT_PDF_DIR, OUTPUT_MD_DIR, OUTPUT_IMG_DIR,
     PDF_OPTIONS, pdf_config,
 )
-from helpers import safe_filename, extract_image_filename, replace_images_with_info
-from mediawiki import extract_mediawiki_image_urls
-from dokuwiki import extract_dokuwiki_image_urls
+from sub_helpers import print_n_log, safe_filename, extract_image_filename, replace_images_with_info
+from sub_mediawiki import extract_mediawiki_image_urls
+from sub_dokuwiki import extract_dokuwiki_image_urls
 
 # Optional packages
 try:
@@ -78,7 +78,7 @@ def download_pdf(title: str, url: str) -> None:
 
     # Skip if file already exists
     if os.path.exists(filepath):
-        print(f"   [SKIP] PDF already exists: {filename}")
+        print_n_log(f"   [SKIP] PDF already exists: {filename}")
         counters.pdfs_skipped += 1
         return
 
@@ -87,10 +87,10 @@ def download_pdf(title: str, url: str) -> None:
         if pdf_config:
             kwargs["configuration"] = pdf_config
         pdfkit.from_url(url, filepath, **kwargs)
-        print(f"   [OK]   PDF saved: {filename}")
+        print_n_log(f"   [OK]   PDF saved: {filename}")
         counters.pdfs_saved += 1
     except Exception as e:
-        print(f"   [FAIL] PDF error ({title}): {e}")
+        print_n_log(f"   [FAIL] PDF error ({title}): {e}")
         counters.pdfs_failed += 1
 
 
@@ -109,7 +109,7 @@ def download_markdown(title: str, url: str) -> None:
 
     # Skip if file already exists
     if os.path.exists(filepath):
-        print(f"   [SKIP] Markdown already exists: {filename}")
+        print_n_log(f"   [SKIP] Markdown already exists: {filename}")
         counters.mds_skipped += 1
         return
 
@@ -149,10 +149,10 @@ def download_markdown(title: str, url: str) -> None:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(markdown_text)
 
-        print(f"   [OK]   Markdown saved: {filename}")
+        print_n_log(f"   [OK]   Markdown saved: {filename}")
         counters.mds_saved += 1
     except Exception as e:
-        print(f"   [FAIL] Markdown error ({title}): {e}")
+        print_n_log(f"   [FAIL] Markdown error ({title}): {e}")
         counters.mds_failed += 1
 
 
@@ -166,7 +166,7 @@ def get_image_urls_from_page(page_url: str) -> list[str]:
         resp = session.get(page_url, timeout=15)
         resp.raise_for_status()
     except Exception as e:
-        print(f"   [WARN] Page not reachable: {e}")
+        print_n_log(f"   [WARN] Page not reachable: {e}")
         return []
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -193,7 +193,7 @@ def download_image(img_url: str) -> None:
 
     # Skip if file already exists
     if os.path.exists(filepath):
-        print(f"   [SKIP] Image already exists: {filename}")
+        print_n_log(f"   [SKIP] Image already exists: {filename}")
         counters.imgs_skipped += 1
         return
 
@@ -205,8 +205,8 @@ def download_image(img_url: str) -> None:
             for chunk in resp.iter_content(8192):
                 f.write(chunk)
 
-        print(f"   [OK]   Image saved: {filename}")
+        print_n_log(f"   [OK]   Image saved: {filename}")
         counters.imgs_saved += 1
     except Exception as e:
-        print(f"   [FAIL] Image error ({img_url}): {e}")
+        print_n_log(f"   [FAIL] Image error ({img_url}): {e}")
         counters.imgs_failed += 1

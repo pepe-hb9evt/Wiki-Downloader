@@ -1,5 +1,5 @@
 """
-mediawiki.py
+sub_mediawiki.py
 ============
 MediaWiki-specific functions: page listing and image URL extraction.
 """
@@ -9,13 +9,14 @@ import re
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
-from config import session, state, MEDIAWIKI_ALL_PAGES_PATH
+from sub_config import session, state, MEDIAWIKI_ALL_PAGES_PATH
+from sub_helpers import print_n_log
 
 
 def get_all_page_links_mediawiki() -> list[tuple[str, str]]:
     """Reads all page links from MediaWiki's special 'All Pages' page."""
     all_pages_url = f"{state.base_url}{MEDIAWIKI_ALL_PAGES_PATH}"
-    print(f"[INFO] Loading page list from: {all_pages_url}")
+    print_n_log(f"[INFO] Loading page list from: {all_pages_url}")
 
     resp = session.get(all_pages_url, timeout=15)
     resp.raise_for_status()
@@ -40,7 +41,7 @@ def get_all_page_links_mediawiki() -> list[tuple[str, str]]:
                 if title:
                     pages.append((title, url))
 
-    print(f"       -> {len(pages)} pages found.\n")
+    print_n_log(f"       -> {len(pages)} pages found.\n")
     return pages
 
 

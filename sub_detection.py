@@ -6,7 +6,8 @@ Auto-detection of the wiki engine type (MediaWiki or DokuWiki).
 
 from bs4 import BeautifulSoup
 
-from config import session
+from sub_config import session
+from sub_helpers import print_n_log
 
 
 def detect_wiki_type(base_url: str) -> str | None:
@@ -16,7 +17,7 @@ def detect_wiki_type(base_url: str) -> str | None:
     and known HTML signatures.
     Returns "mediawiki", "dokuwiki", or None if detection fails.
     """
-    print(f"[INFO] Auto-detecting wiki type for: {base_url}")
+    print_n_log(f"[INFO] Auto-detecting wiki type for: {base_url}")
 
     try:
         resp = session.get(base_url, timeout=15)
@@ -29,10 +30,10 @@ def detect_wiki_type(base_url: str) -> str | None:
         if generator and generator.get("content"):
             gen_content = generator["content"].lower()
             if "mediawiki" in gen_content:
-                print("[INFO] Detected: MediaWiki (via meta generator tag)")
+                print_n_log("[INFO] Detected: MediaWiki (via meta generator tag)")
                 return "mediawiki"
             if "dokuwiki" in gen_content:
-                print("[INFO] Detected: DokuWiki (via meta generator tag)")
+                print_n_log("[INFO] Detected: DokuWiki (via meta generator tag)")
                 return "dokuwiki"
 
         # --- Check 2: URL patterns of internal links ---
@@ -48,10 +49,10 @@ def detect_wiki_type(base_url: str) -> str | None:
         )
 
         if mediawiki_url_count > dokuwiki_url_count and mediawiki_url_count >= 3:
-            print(f"[INFO] Detected: MediaWiki (via URL patterns: {mediawiki_url_count} matches)")
+            print_n_log(f"[INFO] Detected: MediaWiki (via URL patterns: {mediawiki_url_count} matches)")
             return "mediawiki"
         if dokuwiki_url_count > mediawiki_url_count and dokuwiki_url_count >= 3:
-            print(f"[INFO] Detected: DokuWiki (via URL patterns: {dokuwiki_url_count} matches)")
+            print_n_log(f"[INFO] Detected: DokuWiki (via URL patterns: {dokuwiki_url_count} matches)")
             return "dokuwiki"
 
         # --- Check 3: HTML structure indicators (fallback) ---
@@ -59,14 +60,14 @@ def detect_wiki_type(base_url: str) -> str | None:
             "mw-content-text", "mw-navigation", "mw-wiki-logo",
         ]
         if any(hint in html_lower for hint in mediawiki_hints):
-            print("[INFO] Detected: MediaWiki (via HTML structure)")
+            print_n_log("[INFO] Detected: MediaWiki (via HTML structure)")
             return "mediawiki"
 
         dokuwiki_hints = [
             "dokuwiki__content", "dw__toc", "wiki__text",
         ]
         if any(hint in html_lower for hint in dokuwiki_hints):
-            print("[INFO] Detected: DokuWiki (via HTML structure)")
+            print_n_log("[INFO] Detected: DokuWiki (via HTML structure)")
             return "dokuwiki"
 
         # --- Check 4: MediaWiki API endpoint (last resort) ---
@@ -74,12 +75,12 @@ def detect_wiki_type(base_url: str) -> str | None:
             api_url = f"{base_url}/api.php?action=query&meta=siteinfo&format=json"
             api_resp = session.get(api_url, timeout=5)
             if api_resp.status_code == 200 and "mediawiki" in api_resp.text.lower():
-                print("[INFO] Detected: MediaWiki (via API endpoint)")
+                print_n_log("[INFO] Detected: MediaWiki (via API endpoint)")
                 return "mediawiki"
         except Exception:
             pass
 
     except Exception as e:
-        print(f"[WARN] Auto-detection failed: {e}")
+        print_n_log(f"[WARN] Auto-detection failed: {e}")
 
     return None

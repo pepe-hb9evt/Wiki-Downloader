@@ -13,7 +13,8 @@ from urllib.parse import urljoin, urlparse, unquote, parse_qs, quote
 
 from bs4 import BeautifulSoup
 
-from config import session, state, DOKUWIKI_MAX_CRAWL_PAGES
+from sub_config import session, state, DOKUWIKI_MAX_CRAWL_PAGES
+from sub_helpers import print_n_log
 
 
 # ──────────────────────────────────────────────
@@ -34,18 +35,18 @@ def get_all_page_links_dokuwiki() -> list[tuple[str, str]]:
         return pages
 
     # Method 2: ?do=index
-    print("[INFO] Sitemap not available. Trying ?do=index page listing...")
+    print_n_log("[INFO] Sitemap not available. Trying ?do=index page listing...")
     pages = _try_index()
     if pages:
         return pages
 
     # Method 3: recursive crawling (last resort)
-    print("[INFO] Index not available. Falling back to recursive link crawling...")
+    print_n_log("[INFO] Index not available. Falling back to recursive link crawling...")
     pages = _crawl_pages()
     if pages:
         return pages
 
-    print("[FAIL] Could not discover any pages.")
+    print_n_log("[FAIL] Could not discover any pages.")
     return []
 
 
@@ -61,11 +62,11 @@ def _try_sitemap() -> list[tuple[str, str]]:
     ]
 
     for sitemap_url in sitemap_urls_to_try:
-        print(f"[INFO] Trying sitemap: {sitemap_url}")
+        print_n_log(f"[INFO] Trying sitemap: {sitemap_url}")
         try:
             resp = session.get(sitemap_url, timeout=30)
             if resp.status_code != 200:
-                print(f"       -> HTTP {resp.status_code}, skipping.")
+                print_n_log(f"       -> HTTP {resp.status_code}, skipping.")
                 continue
 
             is_gzipped = sitemap_url.endswith(".gz")
@@ -73,10 +74,10 @@ def _try_sitemap() -> list[tuple[str, str]]:
 
             if page_urls:
                 pages = [(derive_title_from_url(url), url) for url in page_urls]
-                print(f"       -> {len(pages)} pages found via sitemap.\n")
+                print_n_log(f"       -> {len(pages)} pages found via sitemap.\n")
                 return pages
         except Exception as e:
-            print(f"       -> Error: {e}")
+            print_n_log(f"       -> Error: {e}")
 
     return []
 
@@ -143,17 +144,17 @@ def _try_index() -> list[tuple[str, str]]:
     # Find a working index URL
     working_index_url = None
     for index_url in index_urls_to_try:
-        print(f"[INFO] Trying index page: {index_url}")
+        print_n_log(f"[INFO] Trying index page: {index_url}")
         try:
             resp = session.get(index_url, timeout=15)
             if resp.status_code == 200 and "idx" in resp.text.lower():
                 working_index_url = index_url
-                print(f"       -> Index page found.")
+                print_n_log(f"       -> Index page found.")
                 break
             else:
-                print(f"       -> Not a valid index page, skipping.")
+                print_n_log(f"       -> Not a valid index page, skipping.")
         except Exception as e:
-            print(f"       -> Error: {e}")
+            print_n_log(f"       -> Error: {e}")
 
     if not working_index_url:
         return []
@@ -219,18 +220,18 @@ def _try_index() -> list[tuple[str, str]]:
 
         # Progress indicator
         if all_pages and len(all_pages) % 100 == 0:
-            print(f"       -> {len(all_pages)} pages discovered so far...")
+            print_n_log(f"       -> {len(all_pages)} pages discovered so far...")
 
         time.sleep(0.3)  # Be kind to the server
 
     # Start the recursive exploration from the root
-    print("[INFO] Exploring index tree...")
+    print_n_log("[INFO] Exploring index tree...")
     explore_index_page("")
 
     if all_pages:
-        print(f"       -> {len(all_pages)} pages found via index.\n")
+        print_n_log(f"       -> {len(all_pages)} pages found via index.\n")
     else:
-        print("       -> No pages found via index.")
+        print_n_log("       -> No pages found via index.")
 
     return all_pages
 
@@ -292,7 +293,7 @@ def _crawl_pages() -> list[tuple[str, str]]:
     Uses two sets (visited + queued) to prevent duplicate processing
     and duplicate queue entries.
     """
-    print(f"[INFO] Starting recursive crawl from: {state.base_url}")
+    print_n_log(f"[INFO] Starting recursive crawl from: {state.base_url}")
 
     visited = set()         # URLs that have been fully processed
     queued = set()          # URLs that have been added to the queue (prevents duplicates)
@@ -328,7 +329,7 @@ def _crawl_pages() -> list[tuple[str, str]]:
         if _is_content_page(url, soup):
             pages.append((title, url))
             if len(pages) % 50 == 0:
-                print(f"       -> {len(pages)} pages discovered so far...")
+                print_n_log(f"       -> {len(pages)} pages discovered so far...")
 
         # Discover and queue internal links
         for a in soup.find_all("a", href=True):
@@ -345,7 +346,7 @@ def _crawl_pages() -> list[tuple[str, str]]:
 
         time.sleep(0.3)  # Be kind to the server during crawling
 
-    print(f"       -> {len(pages)} pages found.\n")
+    print_n_log(f"       -> {len(pages)} pages found.\n")
     return pages
 
 

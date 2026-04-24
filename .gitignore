@@ -1,3 +1,7 @@
+# Ignore the log file
+log_wiki_downloader.txt
+
+
 # Ignore the contents of the output folders,
 # but keep the folders themselves tracked by Git
 output_markdown_pages/*
@@ -13,7 +17,7 @@ output_images/*
 
 # Virtual environment
 .venv/
-
+/__pycache__
 
 # ?
 .idea
@@ -23,6 +27,3 @@ output_images/*
 Thumbs.db
 desktop.ini
 
-/__pycache__
-/wiki_images
-/wiki_markdown
