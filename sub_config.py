@@ -22,10 +22,17 @@ OUTPUT_IMG_DIR = "output_images"
 LOG_FILE       = "log_wiki_downloader.txt"
 DELAY_SECONDS = 1.0
 
-# MediaWiki-specific: path to the "All pages" special page
-# Common variants: "/index.php?title=Spezial:Alle_Seiten" (German)
-#                  "/index.php?title=Special:AllPages"     (English)
-MEDIAWIKI_ALL_PAGES_PATH = "/index.php?title=Spezial:Alle_Seiten"
+
+# MediaWiki-specific: paths to the "All pages" special page.
+# The program tries both paths automatically.
+# For wikis in other languages, adjust these constants accordingly.
+# Examples:
+#   French:  "/index.php?title=Sp%C3%A9cial:Toutes_les_pages"
+#   Spanish: "/index.php?title=Especial:Todas_las_p%C3%A1ginas"
+#   Italian: "/index.php?title=Speciale:Tutte_le_pagine"
+ALL_PAGES_PATH_1 = "/index.php?title=Spezial:Alle_Seiten"   # German
+ALL_PAGES_PATH_2 = "/index.php?title=Special:AllPages"       # English
+
 
 # DokuWiki-specific: max pages to discover during recursive crawling (fallback)
 DOKUWIKI_MAX_CRAWL_PAGES = 10000

@@ -111,6 +111,34 @@ def validate_url(url: str) -> tuple[bool, str]:
     return True, "OK"
 
 
+def resolve_url_scheme(url_without_scheme: str) -> tuple[bool, str, str]:
+    """
+    Tries to reach a URL by first testing https://, then falling back to http://.
+    Used when the user enters a URL without a scheme (e.g. 'jotawiki.scout.ch').
+    Returns (success, validated_url, message).
+    """
+    # Try HTTPS first
+    https_url = f"https://{url_without_scheme}"
+    print_n_log(f"[INFO] Trying: {https_url}")
+    is_valid, message = validate_url(https_url)
+    if is_valid:
+        print_n_log("[INFO] Reachable via HTTPS.")
+        return True, https_url, message
+
+    print_n_log(f"   [WARN] HTTPS failed: {message}")
+
+    # Fall back to HTTP
+    http_url = f"http://{url_without_scheme}"
+    print_n_log(f"[INFO] Trying: {http_url}")
+    is_valid, message = validate_url(http_url)
+    if is_valid:
+        print_n_log("[INFO] Reachable via HTTP.")
+        return True, http_url, message
+
+    print_n_log(f"   [WARN] HTTP also failed: {message}")
+    return False, "", "Could not reach the site via HTTPS or HTTP."
+
+
 # ──────────────────────────────────────────────
 # FILE AND FOLDER HELPERS
 # ──────────────────────────────────────────────
