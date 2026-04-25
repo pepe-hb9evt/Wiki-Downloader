@@ -144,14 +144,18 @@ def resolve_url_scheme(url_without_scheme: str) -> tuple[bool, str, str]:
 # ──────────────────────────────────────────────
 
 def clear_folder(folder_path: str) -> None:
-    """Deletes all files inside the given folder (not subfolders)."""
+    """Deletes all files inside the given folder (not subfolders).
+    Preserves .gitkeep files to keep the folder tracked in Git."""
     count = 0
     for filename in os.listdir(folder_path):
+        # Skip .gitkeep files (used to keep empty folders in Git)
+        if filename == ".gitkeep":
+            continue
         filepath = os.path.join(folder_path, filename)
         if os.path.isfile(filepath):
             os.remove(filepath)
             count += 1
-    print_n_log(f"   [OK]   {folder_path}/ cleared ({count} file(s) deleted)")
+    print_n_log(f"   [OK]   {folder_path}/ cleared ({count} file(s) deleted, .gitkeep preserved)")
 
 
 def safe_filename(name: str, ext: str) -> str:
